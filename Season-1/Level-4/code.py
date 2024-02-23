@@ -24,6 +24,7 @@ def source():
 
 # Characters that should not exist in user-supplied input
 RESTRICTED_CHARS = ";%&^!#-"
+BAD_QUERY_MESSAGE = "Error, your query was not run because your input parameters seem badly formatted"
 
 class Connect(object):
 
@@ -77,18 +78,18 @@ class Create(object):
 class DB_CRUD_ops(object):
 
     @staticmethod
-    def _check_user_input_okay(query: str) -> bool:
+    def _user_input_okay(user_input: str) -> bool:
         """
         Two simple checks of user input to see if input is 
         potentially malicous. 
 
         Boolean returned, with True meaning user input **seems** okay.
         """
-        if any([char in query for char in RESTRICTED_CHARS]):
+        if any([char in user_input for char in RESTRICTED_CHARS]):
             return False
         
-        # checks if input contains a wrong number of single quotes against SQL injection
-        if query.count("'") != 2:
+        # checks if input contains extra quotes to fight against SQL injection
+        if (user_input.count("'") != 0) or (user_input.count('"') != 0):
             return False
         
         return True
@@ -109,18 +110,19 @@ class DB_CRUD_ops(object):
             db_con = con.create_connection(db_path)
             cur = db_con.cursor()
 
+
+            if not self._user_input_okay(stock_symbol):
+                return BAD_QUERY_MESSAGE
+            
+            # if looks okay, run the query, but use a parameterized statement
             res = "[METHOD EXECUTED] get_stock_info\n"
-            query = "SELECT * FROM stocks WHERE symbol = '{0}'".format(stock_symbol)
+            cur.execute("SELECT * FROM stocks WHERE symbol = ?", (stock_symbol,))
+            query = "SELECT * FROM stocks WHERE symbol = '" + stock_symbol + "'"
             res += "[QUERY] " + query + "\n"
 
-            if self._check_user_input_okay(query):
-                cur.execute(query)
-
-                query_outcome = cur.fetchall()
-                for result in query_outcome:
-                    res += "[RESULT] " + str(result)
-            else:
-                res += "CONFIRM THAT THE ABOVE QUERY IS NOT MALICIOUS TO EXECUTE"
+            query_outcome = cur.fetchall()
+            for result in query_outcome:
+                res += "[RESULT] " + str(result)
 
             return res
 
@@ -146,17 +148,19 @@ class DB_CRUD_ops(object):
             db_con = con.create_connection(db_path)
             cur = db_con.cursor()
 
+            if not self._user_input_okay(stock_symbol):
+                return BAD_QUERY_MESSAGE
+
+            # if looks okay, run the query, but use a parameterized statement
             res = "[METHOD EXECUTED] get_stock_price\n"
+            cur.execute("SELECT price FROM stocks WHERE symbol = ?", (stock_symbol,))
             query = "SELECT price FROM stocks WHERE symbol = '" + stock_symbol + "'"
             res += "[QUERY] " + query + "\n"
-            if ';' in query:
-                res += "[SCRIPT EXECUTION]\n"
-                cur.executescript(query)
-            else:
-                cur.execute(query)
-                query_outcome = cur.fetchall()
-                for result in query_outcome:
-                    res += "[RESULT] " + str(result) + "\n"
+
+            query_outcome = cur.fetchall()
+            for result in query_outcome:
+                res += "[RESULT] " + str(result) + "\n"
+
             return res
 
         except sqlite3.Error as e:
@@ -181,10 +185,15 @@ class DB_CRUD_ops(object):
 
             if not isinstance(price, float):
                 raise Exception("ERROR: stock price provided is not a float")
+            
+            if not self._user_input_okay(stock_symbol):
+                return BAD_QUERY_MESSAGE
 
+            # if looks okay, run the query, but use a parameterized statement
             res = "[METHOD EXECUTED] update_stock_price\n"
-            # UPDATE stocks SET price = 310.0 WHERE symbol = 'MSFT'
-            query = "UPDATE stocks SET price = '%d' WHERE symbol = '%s'" % (price, stock_symbol)
+             # UPDATE stocks SET price = 310.0 WHERE symbol = 'MSFT'
+            cur.execute("UPDATE stocks SET price = ? WHERE symbol = ?", (price, stock_symbol,))
+            query = f"UPDATE stocks SET price = '{price}' WHERE symbol = '{stock_symbol}'"
             res += "[QUERY] " + query + "\n"
 
             cur.execute(query)
