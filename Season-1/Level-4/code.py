@@ -22,6 +22,9 @@ def source():
     DB_CRUD_ops().update_stock_price(request.args["input"])
 ### Unrelated to the exercise -- Ends here -- Please ignore
 
+# Characters that should not exist in user-supplied input
+RESTRICTED_CHARS = ";%&^!#-"
+
 class Connect(object):
 
     # helper function creating database with the connection
@@ -73,10 +76,30 @@ class Create(object):
 
 class DB_CRUD_ops(object):
 
-    # retrieves all info about a stock symbol from the stocks table
-    # Example: get_stock_info('MSFT') will result into executing
-    # SELECT * FROM stocks WHERE symbol = 'MSFT'
-    def get_stock_info(self, stock_symbol):
+    @staticmethod
+    def _check_user_input_okay(query: str) -> bool:
+        """
+        Two simple checks of user input to see if input is 
+        potentially malicous. 
+
+        Boolean returned, with True meaning user input **seems** okay.
+        """
+        if any([char in query for char in RESTRICTED_CHARS]):
+            return False
+        
+        # checks if input contains a wrong number of single quotes against SQL injection
+        if query.count("'") != 2:
+            return False
+        
+        return True
+
+
+    def get_stock_info(self, stock_symbol:str) -> str:
+        """
+        retrieves all info about a stock symbol from the stocks table
+        Example: get_stock_info('MSFT') will result into executing
+        SELECT * FROM stocks WHERE symbol = 'MSFT'
+        """
         # building database from scratch as it is more suitable for the purpose of the lab
         db = Create()
         con = Connect()
@@ -90,25 +113,15 @@ class DB_CRUD_ops(object):
             query = "SELECT * FROM stocks WHERE symbol = '{0}'".format(stock_symbol)
             res += "[QUERY] " + query + "\n"
 
-            # a block list (aka restricted characters) that should not exist in user-supplied input
-            restricted_chars = ";%&^!#-"
-            # checks if input contains characters from the block list
-            has_restricted_char = any([char in query for char in restricted_chars])
-            # checks if input contains a wrong number of single quotes against SQL injection
-            correct_number_of_single_quotes = query.count("'") == 2
-
-            # performs the checks for good cyber security and safe software against SQL injection
-            if has_restricted_char or not correct_number_of_single_quotes:
-                # in case you want to sanitize user input, please uncomment the following 2 lines
-                # sanitized_query = query.translate({ord(char):None for char in restricted_chars})
-                # res += "[SANITIZED_QUERY]" + sanitized_query + "\n"
-                res += "CONFIRM THAT THE ABOVE QUERY IS NOT MALICIOUS TO EXECUTE"
-            else:
+            if self._check_user_input_okay(query):
                 cur.execute(query)
 
                 query_outcome = cur.fetchall()
                 for result in query_outcome:
                     res += "[RESULT] " + str(result)
+            else:
+                res += "CONFIRM THAT THE ABOVE QUERY IS NOT MALICIOUS TO EXECUTE"
+
             return res
 
         except sqlite3.Error as e:
@@ -117,10 +130,13 @@ class DB_CRUD_ops(object):
         finally:
             db_con.close()
 
-    # retrieves the price of a stock symbol from the stocks table
-    # Example: get_stock_price('MSFT') will result into executing
-    # SELECT price FROM stocks WHERE symbol = 'MSFT'
-    def get_stock_price(self, stock_symbol):
+
+    def get_stock_price(self, stock_symbol:str) -> str:
+        """
+        retrieves the price of a stock symbol from the stocks table
+        Example: get_stock_price('MSFT') will result into executing
+        SELECT price FROM stocks WHERE symbol = 'MSFT'
+        """
         # building database from scratch as it is more suitable for the purpose of the lab
         db = Create()
         con = Connect()
@@ -149,8 +165,11 @@ class DB_CRUD_ops(object):
         finally:
             db_con.close()
 
-    # updates stock price
-    def update_stock_price(self, stock_symbol, price):
+    
+    def update_stock_price(self, stock_symbol:str, price:float) -> str:
+        """
+        Updates a given stocks price
+        """
         # building database from scratch as it is more suitable for the purpose of the lab
         db = Create()
         con = Connect()
